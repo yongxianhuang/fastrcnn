@@ -10,20 +10,29 @@ import xml.etree.ElementTree as ET
 from scipy.io import loadmat
 import pickle
 from tqdm import tqdm
+import skimage.io as io
+import sys
+import traceback
+import gzip
+import joblib
 
 
 # dl_manager.iter_archive(download_path[2]),
 
 class StanfordDogs():
-    def __init__(self):
-        self._DOGS_DIR = "/work/ml/stanford-dogs-dataset"
-        self._LIST_FILE = ["file_list.mat", "test_list.mat", "train_list.mat"]
-        self._ANNOTATIONS_DIR = "Annotation"
-        self._IMAGE_DIR = "images"
+    def __init__(self, DATA_DIR="/work/ml/stanford-dogs-dataset",
+                 LIST_FILE=None, ANN_DIR="Annotation",
+                 IMG_DIR="Images"):
+        if not LIST_FILE: LIST_FILE = ["file_list.mat", "test_list.mat", "train_list.mat"]
+        self._DOGS_DIR = DATA_DIR
+        self._LIST_FILE = LIST_FILE
+        self._ANNOTATIONS_DIR = ANN_DIR
+        self._IMAGE_DIR = IMG_DIR
         self._NAME_RE = re.compile(r"([\w-]*/)*([\w]*.jpg)$")  # res = _NAME_RE.match(fname)
 
     def split_generators(self, pickle_filename):
         xml_file_list = collections.defaultdict(str)
+        images_data = collections.defaultdict(str)
         train_list, test_list, label_names = [], [], []
 
         # Parsing the mat file which contains the list of train/test images
@@ -39,18 +48,41 @@ class StanfordDogs():
                 label_names = set([element.split("/")[-2].lower() for element in train_mat_arr["file_list"]])
             elif "test" in fname:  # and 0:
                 test_list, _ = parse_mat_file(full_file_name)
+        print(f'generating ann data ....')
         for root, _, files in tqdm(os.walk(os.path.join(self._DOGS_DIR, self._ANNOTATIONS_DIR))):
             # Parsing the XML file which have the image annotations
             for fname in (files):
                 annotation_file_name = os.path.join(root, fname)
                 with open(annotation_file_name, "rb") as f:
                     xml_file_list[fname] = ET.parse(f)
+        print(f'generating img data ....')
+        for root, _, files, in tqdm(os.walk(os.path.join(self._DOGS_DIR, self._IMAGE_DIR))):
+            # root is /opt/ml/stanford-dogs-dataset/Images/n02110185-Siberian_husky
+            # files is n02110185_9975.jpg
+            # dogbreed=root.split('/')[-1].split('-')[0]
+            for fname in files:
+                if not self._NAME_RE.match(fname) or (os.path.splitext(fname)[1] != '.jpg'): continue
+                key = os.path.splitext(fname)[0]
+                img = io.imread(os.path.join(root, fname))[..., :3]
+                try:
+                    assert img.shape[2] == 3
+                except AssertionError:
+                    print(f'AssertionError file name is :{os.path.join(root, fname)} ...')
+                    _, _, tb = sys.exc_info()
+                    traceback.print_tb(tb)  # Fixed format
+                    tb_info = traceback.extract_tb(tb)
+                    filename, line, func, text = tb_info[-1]
+                    print('An error occurred on line {} in statement {}'.format(line, text))
+                    exit(1)
+                images_data[key] = img
+
         pick_data = [
             {
                 "archive": "train",
                 "file_names": train_list,
                 "annotation_files": xml_file_list,
-                "label_names": label_names,
+                "label_names": tuple(label_names),
+                "data": images_data,
             },
             {
                 "archive": "test",
@@ -60,10 +92,13 @@ class StanfordDogs():
         ]
         if os.path.exists(pickle_filename):
             os.remove(pickle_filename)
-        with open(pickle_filename, 'wb') as f:
-            print(f'saving data to file:{pickle_filename} ...')
-            pickle.dump(pick_data, f, protocol=4)
-            print(f'done! writing train {len(train_list)} records and test {len(test_list)}.')
+        print(f'dumping pkl data ....')
+        # with gzip.open(pickle_filename, 'wb') as f:
+        # with open(pickle_filename, 'wb') as f:
+        #     print(f'saving data to file:{pickle_filename} ...')
+        #     pickle.dump(pick_data, f, protocol=2)
+        joblib.dump(pick_data, compress=('bz2', 3), filename=pickle_filename, protocol=4)
+        print(f'done! writing train {len(train_list)} records and test {len(test_list)}.')
 
     def generate_examples(self, archive, file_names, annotation_files):
         """Generate dog images, labels, bbox attributes given the directory path.
@@ -117,8 +152,8 @@ class StanfordDogs():
 
 
 def main():
-    sd = StanfordDogs()
-    sd.split_generators('sdogs.pkl')
+    sd = StanfordDogs(DATA_DIR='/opt/ml/stanford-dogs-dataset')
+    sd.split_generators('sdogs.pkl.bz2')
     '''
     then we need write more img data ...
     img_path = data['image_name'][i]
@@ -126,11 +161,11 @@ def main():
     gt_classes = data['gt_classes'][i]
     nobj = data['num_objs'][i]
     bboxs = data['selective_search_boxes'][i]
-    nroi = len(bboxs)
-
+    nroi = len(bboxs) 
     img = Image.open('data/JPEGImages/' + img_path)
     '''
 
 
 if __name__ == '__main__':
     main()
+
