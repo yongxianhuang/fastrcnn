@@ -95,7 +95,7 @@ def train(cfg):
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ])
     model = build_model(cfg)
-    print(model)
+    # print(model)
     tl = []
     ts = []
     to = []
@@ -145,6 +145,7 @@ def train(cfg):
     # plot('loss', 'Train/Val : Loss', 'Train', 'Validation', tl, vl, n_epoch)
     # plot('loss_sc', 'Train/Val : Loss_sc', 'Train', 'Validation', ts, vs, n_epoch)
     # plot('loss_loc', 'Train/Val : Loss_loc', 'Train', 'Validation', to, vo, n_epoch)
+    torch.save(model.state_dict(), 'model/hao123.mdl')
 
 
 def main():
