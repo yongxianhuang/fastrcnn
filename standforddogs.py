@@ -13,7 +13,7 @@ from tqdm import tqdm
 import skimage.io as io
 import sys
 import traceback
-import gzip
+import gzip,bz2
 import joblib
 
 
