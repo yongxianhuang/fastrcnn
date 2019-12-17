@@ -12,6 +12,34 @@ from utils.logger import setup_logger
 from model import build_model
 import numpy as np
 from tqdm import trange
+import matplotlib.pyplot as plt
+
+
+def plot(name, title, legendx, legendy, x, y, n_epoch, frame_size=256, labelx='Epoch', labely='Loss'):
+    i = 0
+    x = np.array(x).flatten('F')
+    y = np.array(y).flatten('F')
+    framex = []
+    framey = []
+
+    while i * frame_size < len(x):
+        framex.append(np.mean(x[i * frame_size:min(len(x), (i + 1) * frame_size)]))
+        framey.append(np.mean(y[i * frame_size:min(len(y), (i + 1) * frame_size)]))
+        i += 1
+
+    a = np.arange(0, len(x), len(x) / len(framex))
+    b = a / len(y) * n_epoch
+    a = a / len(x) * n_epoch
+
+    plt.figure()
+    plt.plot(a, framex)
+    plt.plot(b, framey)
+    plt.xlabel(labelx)
+    plt.ylabel(labely)
+    plt.title(title)
+    plt.legend([legendx, legendy])
+    plt.savefig(name, dpi=600)
+    plt.show()
 
 
 def train_batch(model, optimizer, img, rois, ridx, gt_cls, gt_tbbox, is_val=False):
@@ -29,8 +57,8 @@ def train_batch(model, optimizer, img, rois, ridx, gt_cls, gt_tbbox, is_val=Fals
 
 
 def train_epoch(run_set, train_imgs, train_img_info, train_roi, train_cls, train_tbbox, model, optimizer, is_val=False):
-    I = 2
-    B = 64
+    I = 2  # N pics
+    B = 64  # number of rois per image, == R=128/N=2
     POS = int(B * 0.25)  # 16
     NEG = B - POS  # 48
     Nimg = len(run_set)
@@ -142,9 +170,9 @@ def train(cfg):
         vs.append(val_sc)
         vo.append(val_loc)
 
-    # plot('loss', 'Train/Val : Loss', 'Train', 'Validation', tl, vl, n_epoch)
-    # plot('loss_sc', 'Train/Val : Loss_sc', 'Train', 'Validation', ts, vs, n_epoch)
-    # plot('loss_loc', 'Train/Val : Loss_loc', 'Train', 'Validation', to, vo, n_epoch)
+    plot('loss', 'Train/Val : Loss', 'Train', 'Validation', tl, vl, n_epoch)
+    plot('loss_sc', 'Train/Val : Loss_sc', 'Train', 'Validation', ts, vs, n_epoch)
+    plot('loss_loc', 'Train/Val : Loss_loc', 'Train', 'Validation', to, vo, n_epoch)
     torch.save(model.state_dict(), 'model/hao123.mdl')
 
 

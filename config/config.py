@@ -31,7 +31,7 @@ cfg = __C
 
 __C.TRAIN = edict()
 
-__C.TRAIN.N_EPOCH = 2
+__C.TRAIN.N_EPOCH = 20
 # Scales to use during training (can list multiple scales)
 # Each scale is the pixel size of an image's shortest side
 __C.TRAIN.SCALES = (600,)
